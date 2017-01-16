@@ -9,12 +9,12 @@ from pprint import pprint
 
 host_dict = {
     "group1": {
-        'hosts': ["172.16.8.210", ],
+        'hosts': ["192.168.1.100", "1.1.1.1"],
         'vars': {'host': 'var_value'}
     },
     "_meta": {
         "hostvars": {
-            "172.16.8.210": {"hosts": "hostvalue"}
+            "192.168.1.100": {"hosts": "hostvalue"}
         }
     }
 }

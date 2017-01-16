@@ -90,7 +90,6 @@ class Runner(object):
         extra_vars = None,
         private_key_file=None
     ):
-        print remote_user
 
         # storage & defaults
         self.pattern = pattern
