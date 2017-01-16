@@ -85,9 +85,7 @@ class CallbackModule(CallbackBase):
                 'stats': summary
             }
 
-    def gather_result(self, res, mystate):
-        res._result.update({"mystate": mystate})
-
+    def gather_result(self, res):
         if res._task.loop and "results" in res._result and res._host.name in self.item_results:
             res._result.update({"results": self.item_results[res._host.name]})
             del self.item_results[res._host.name]
@@ -98,35 +96,27 @@ class CallbackModule(CallbackBase):
         if "ansible_facts" in res._result:
             del res._result["ansible_facts"]
 
-        if "changed" in res._result and res._result["changed"]:
-            self.gather_result(res, "changed")
-        else:
-            self.gather_result(res, "ok")
+        self.gather_result(res)
 
     def v2_runner_on_failed(self, res, **kwargs):
-        self.gather_result(res, "failed")
-    def v2_runner_on_unreachable(self, res, **kwargs):
-        self.gather_result(res, "unreachable")
-    def v2_runner_on_skipped(self, res, **kwargs):
-        self.gather_result(res, "skipped")
+        self.gather_result(res)
 
+    def v2_runner_on_unreachable(self, res, **kwargs):
+        self.gather_result(res)
+
+    def v2_runner_on_skipped(self, res, **kwargs):
+        self.gather_result(res)
 
     def gather_item_result(self, res):
         self.item_results.setdefault(res._host.name, []).append(res._result)
 
     def v2_runner_item_on_ok(self, res):
-        if "changed" in res._result and res._result["changed"]:
-            res._result.update({"mystate": "changed"})
-        else:
-            res._result.update({"mystate": "ok"})
-
         self.gather_item_result(res)
 
     def v2_runner_item_on_failed(self, res):
-        res._result.update({"mystate": "failed"})
         self.gather_item_result(res)
+
     def v2_runner_item_on_skipped(self, res):
-        res._result.update({"mystate": "skipped"})
         self.gather_item_result(res)
 
 

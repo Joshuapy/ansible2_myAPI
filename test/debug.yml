@@ -5,5 +5,5 @@
   remote_user: root
   gather_facts: yes
   tasks:
-   - name: uptime
+   - name: exec uptime
      shell: uptime

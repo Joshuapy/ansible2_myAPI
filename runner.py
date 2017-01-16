@@ -35,44 +35,25 @@ class ResultCallback(CallbackBase):
     def __init__(self):
         self.result_q = dict(contacted={}, dark={})
 
-    def gather_result(self, n, res, mystate):
-        res._result.update({"mystate": mystate})
+    def gather_result(self, n, res):
         self.result_q[n].update({res._host.name: res._result})
 
     def v2_runner_on_ok(self, result):
-        if "changed" in result._result and result._result["changed"]:
-            self.gather_result("contacted", result, "changed")
-        else:
-            self.gather_result("contacted", result, "ok")
+        self.gather_result("contacted", result)
 
     def v2_runner_on_failed(self, result, ignore_errors=False):
-        self.gather_result("dark", result, "failed")
+        self.gather_result("dark", result)
 
     def v2_runner_on_unreachable(self, result):
-        self.gather_result("dark", result, "unreachable")
+        self.gather_result("dark", result)
 
     def v2_runner_on_skipped(self, result):
-        self.gather_result("dark", result, "skipped")
+        self.gather_result("dark", result)
 
     def v2_playbook_on_task_start(self, task, is_conditional):
-        taskname = None
-
-        if hasattr(task, "_ds") and task._ds.get("action"):
-            action = task._ds.get("action")
-            taskname = "[%s]:%s" % (action.get("module"), action.get("args"))
-
-        if taskname is None and "action" in task._attributes:
-            taskname = task._attributes["action"]
-
-        if taskname is None:
-            args = ", ".join(('%s=%s' % a for a in task.args.items()))
-            args = " %s" % args
-            taskname = "%s%s" % (task.get_name().strip(), args)
-
-        self.result_q['task'] = {"id": str(task._uuid), "name": taskname}
+        pass
 
     def v2_playbook_on_play_start(self, play):
-        # self.result_q['operation'] = {"id": str(play._uuid)}
         pass
 
 
@@ -94,7 +75,7 @@ class Runner(object):
         self,
         hosts=C.DEFAULT_HOST_LIST,
         module_name=C.DEFAULT_MODULE_NAME,    # * command
-        module_args=C.DEFAULT_MODULE_ARGS,    # * ''
+        module_args=C.DEFAULT_MODULE_ARGS,    # * 'cmd args'
         forks=C.DEFAULT_FORKS,                # 5
         timeout=C.DEFAULT_TIMEOUT,            # SSH timeout = 10s
         pattern="all",                        # all
@@ -109,6 +90,7 @@ class Runner(object):
         extra_vars = None,
         private_key_file=None
     ):
+        print remote_user
 
         # storage & defaults
         self.pattern = pattern
@@ -117,8 +99,7 @@ class Runner(object):
         self.module_name = module_name
         self.module_args = module_args
         self.check_module_args()
-        self.gather_facts = False
-        # self.gather_facts = gather_facts
+        self.gather_facts = 'no'
         self.resultcallback = ResultCallback()
         self.options = Options(
             connection=connection_type,
@@ -142,9 +123,9 @@ class Runner(object):
         self.variable_manager.set_inventory(self.inventory)
 
         self.play_source = dict(
-            name="Ansible API Play",
+            name="Ansible Ad-hoc",
             hosts=self.pattern,
-            gather_facts='yes' if self.gather_facts else 'no',
+            gather_facts=self.gather_facts,
             tasks=[dict(action=dict(
                 module=self.module_name, args=self.module_args))]
         )
@@ -154,16 +135,15 @@ class Runner(object):
             loader=self.loader)
 
         self.runner = TaskQueueManager(
-                inventory=self.inventory,
-                variable_manager=self.variable_manager,
-                loader=self.loader,
-                options=self.options,
-                passwords=self.passwords,
-                stdout_callback=self.resultcallback
-                # stdout_callback = 'minimal',
+            inventory=self.inventory,
+            variable_manager=self.variable_manager,
+            loader=self.loader,
+            options=self.options,
+            passwords=self.passwords,
+            stdout_callback=self.resultcallback
         )
 
-        # end __init__()
+        # ** end __init__() **
 
     def run(self):
         if not self.inventory.list_hosts("all"):

@@ -20,20 +20,11 @@ host_dict = {
 }
 
 runner = Runner(
-    # module_name="template",
-    # module_args="src=./test.j2 dest=/home/gjobs_test/test.j2",
-    module_name="ping",
-    # module_args="uptime",
-    pattern="all",
+    module_name="shell",
+    module_args="uptime",
     remote_user="root",
+    pattern="all",
     hosts=host_dict,
-
-    private_key_file="/home/joshua/.ssh/id_rsa_gjobs",
-    passwords={"conn_pass": "8ql6,yhY"},
-    connection_type="paramiko",
-    timeout=5
-    # extra_vars=["k=v","k2=v2"],
-    # hosts=["11.1.1.1"]
 )
 
 pprint(runner.run())

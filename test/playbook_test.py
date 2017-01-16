@@ -25,11 +25,9 @@ host_list = ["172.16.8.210"]
 
 
 runner = PlaybookRunner(
-    playbook_path="debug.yml",
+    playbook_path="two_play.yml",
+    #playbook_path="debug.yml",
     hosts=host_dict,
-    private_key_file="/home/joshua/.ssh/id_rsa_gjobs",
-    connection_type="paramiko",
-    passwords={"conn_pass": "8ql6,yhY"},
 )
 
 
