@@ -124,7 +124,7 @@ class MyInventory(Inventory):
             group.vars = combine_vars(group.vars, self.get_group_variables(group.name))
 
         # get host vars from host_vars/ files and vars plugins
-        for host in self.get_hosts(ignore_limits=True, ignore_restrictions=True):
+        for host in self.get_hosts():
             host.vars = combine_vars(host.vars, self.get_host_variables(host.name))
             self.get_host_vars(host)
 
