@@ -55,7 +55,8 @@ hosts = {
         "children": ["other_group"],
     },
     "3.3.3.3": {							# 格式3
-    	"vars": {"some_var2": "some_value2"}
+    	"some_var2": "some_value2",
+		"foo": "bar"
     }
     "_meta": {								# 主机变量
     	"hostvars": {
