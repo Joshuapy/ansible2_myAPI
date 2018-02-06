@@ -14,7 +14,7 @@ Ansible1.9版本的API的使用是非常简单的，但是进入2.0后，Ansible
 
 ## 测试环境
 * python2.7测试通过，其他python版本未测试
-* Ansible2.0 +
+* Ansible2.0 ~ 2.3   2.4暂不支持
 * 秘钥免登陆访问
 
 
