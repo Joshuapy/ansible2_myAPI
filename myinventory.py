@@ -34,10 +34,12 @@ class MyInventory(Inventory):
         如果你只传入1个列表，则不能加载主机变量
     """
     def __init__(self, sources=None):
+        if sources is not None:
+            sources = [sources]
+
         self.loader = DataLoader()
-        self.sources = sources or []
         self._inventory_plugins = []
-        self._inventory_plugins.append(InventoryDictPlugin(self.loader)) # 添加自己的plugin
+        self._inventory_plugins.append(InventoryDictPlugin()) # 添加自己的plugin
         super(MyInventory, self).__init__(self.loader, sources)
 
 
@@ -47,7 +49,7 @@ class InventoryDictPlugin(BaseInventoryPlugin):
     参照仓库解析插件script做的针对字典类型的数据仓库解析插件.
     Host inventory parser for ansible using Dict data. as inventory scripts.
     """
-    def __init__(self, loader, groups=None, dictdata=None):
+    def __init__(self):
         super(InventoryDictPlugin, self).__init__()
         self._hosts = set()
 
