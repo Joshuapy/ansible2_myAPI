@@ -14,9 +14,14 @@ Ansible1.9版本的API的使用是非常简单的，但是进入2.0后，Ansible
 
 ## 测试环境
 * python2.7测试通过，其他python版本未测试
-* Ansible2.0 ~ 2.3   2.4暂不支持
+* Ansible2.0 ~ 2.3
+* Ansible2.4 ~ 2.5
 * 秘钥免登陆访问
 
+## 分支说明
+因ansible2.4版本较2.3版本改动较大,所以开一个分支兼容2.4以上版本
+* master分支: 支持ansible2.0 ~ 2.3本版本
+* for-2.4分支: 支持ansible2.4 + 2.5 版本
 
 ## Inventory 扩展
 根据官方动态主机仓库(Dynamic Inventory)的使用规则，扩展了主机仓库的形式。
