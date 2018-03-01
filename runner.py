@@ -24,6 +24,7 @@ C.HOST_KEY_CHECKING = False
 Options = namedtuple("Options", [
     'connection', 'module_path', 'private_key_file', "remote_user", "timeout",
     'forks', 'become', 'become_method', 'become_user', 'check', "extra_vars",
+    'diff'
     ]
 )
 
@@ -93,7 +94,6 @@ class Runner(object):
 
         # storage & defaults
         self.pattern = pattern
-        self.variable_manager = VariableManager()
         self.loader = DataLoader()
         self.module_name = module_name
         self.module_args = module_args
@@ -112,14 +112,14 @@ class Runner(object):
             remote_user=remote_user,
             extra_vars=extra_vars or [],
             private_key_file=private_key_file,
+            diff=False
         )
 
-        self.variable_manager.extra_vars = load_extra_vars(loader=self.loader, options=self.options)
-        self.variable_manager.options_vars = load_options_vars(self.options)
-
-        self.passwords = passwords or {}
         self.inventory = MyInventory(host_list=hosts)
-        self.variable_manager.set_inventory(self.inventory)
+        self.variable_manager = VariableManager(self.loader, self.inventory)
+        self.variable_manager.extra_vars = load_extra_vars(loader=self.loader, options=self.options)
+        self.variable_manager.options_vars = load_options_vars(self.options, "")
+        self.passwords = passwords or {}
 
         self.play_source = dict(
             name="Ansible Ad-hoc",
@@ -154,15 +154,13 @@ class Runner(object):
 
         try:
             self.runner.run(self.play)
-        except Exception as e:
-            raise Exception(e)
-        else:
-            return self.resultcallback.result_q
         finally:
             if self.runner:
                 self.runner.cleanup()
             if self.loader:
                 self.loader.cleanup_all_tmp_files()
+
+        return self.resultcallback.result_q
 
 
     def check_module_args(self):

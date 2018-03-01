@@ -4,7 +4,7 @@
 import os
 from collections import namedtuple
 from ansible.parsing.dataloader import DataLoader
-from ansible.vars import VariableManager
+from ansible.vars.manager import VariableManager
 from ansible.executor.playbook_executor import PlaybookExecutor
 from ansible.plugins.callback import CallbackBase
 import ansible.constants as C
@@ -20,7 +20,8 @@ Options = namedtuple('Options', [
     'listtags', 'listtasks', 'listhosts', 'syntax', 'connection',
     'module_path', 'forks', 'remote_user', 'private_key_file', 'timeout',
     'ssh_common_args', 'ssh_extra_args', 'sftp_extra_args', 'scp_extra_args',
-    'become', 'become_method', 'become_user', 'verbosity', 'check', 'extra_vars'])
+    'become', 'become_method', 'become_user', 'verbosity', 'check',
+    'extra_vars', 'diff'])
 
 
 class CallbackModule(CallbackBase):
@@ -160,10 +161,10 @@ class PlaybookRunner(object):
             raise AnsibleError(
                 "Not Found the playbook file: %s." % playbook_path)
         self.playbook_path = playbook_path
-        self.loader = DataLoader()
-        self.variable_manager = VariableManager()
-        self.passwords = passwords or {}
         self.inventory = MyInventory(host_list=hosts)
+        self.loader = DataLoader()
+        self.variable_manager = VariableManager(self.loader, self.inventory)
+        self.passwords = passwords or {}
 
         self.options = Options(
             listtags=listtags,
@@ -185,11 +186,12 @@ class PlaybookRunner(object):
             become_user=become_user,
             verbosity=verbosity,
             extra_vars=extra_vars or [],
-            check=check
+            check=check,
+            diff=False
         )
 
         self.variable_manager.extra_vars = load_extra_vars(loader=self.loader, options=self.options)
-        self.variable_manager.options_vars = load_options_vars(self.options)
+        self.variable_manager.options_vars = load_options_vars(self.options, "")
 
         self.variable_manager.set_inventory(self.inventory)
         self.runner = PlaybookExecutor(

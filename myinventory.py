@@ -1,27 +1,25 @@
 #!/usr/bin/env python
 # coding:utf8
 
-#import os
-from ansible.inventory.manager import InventoryManager as Inventory
-from ansible.parsing.dataloader import DataLoader
-
-from ansible.plugins.inventory import BaseInventoryPlugin
 from collections import Mapping
-
+from ansible.inventory.manager import InventoryManager
+from ansible.parsing.dataloader import DataLoader
+from ansible.plugins.inventory import BaseInventoryPlugin
 from ansible.errors import AnsibleError, AnsibleParserError
-from ansible.module_utils.six import iteritems
+from ansible.module_utils.six import iteritems, string_types
 from ansible.module_utils._text import to_native
 
 __all__ = ["MyInventory"]
 
 HOSTS_PATTERNS_CACHE = {}
 
-class MyInventory(Inventory):
+
+class MyInventory(InventoryManager):
     """
     this is my ansible inventory object.
     支持三种数据类型的主机信息:
         - 字符串形式： "1.1.1.1, 2.2.2.2", "1.1.1.1"
-        - 列表形式: ["1.1.1.1", "2.2.2.2"]
+        - 列表/集合形式: ["1.1.1.1", "2.2.2.2"],  {"1.1.1.1", "2.2.2.2"}
         - 字典形式: {
             "group1": {
                 "hosts": [{"hostname": "10.10.10.10", "port": "22",
@@ -29,26 +27,112 @@ class MyInventory(Inventory):
                 "vars": {"var1": value1, "var2": value2, ...}
             }
         }
-
-    注意:
-        如果你只传入1个列表，则不能加载主机变量
     """
-    def __init__(self, sources=None):
-        if sources is not None:
-            sources = [sources]
-
+    def __init__(self, host_list=None):
         self.loader = DataLoader()
-        self._inventory_plugins = []
-        self._inventory_plugins.append(InventoryDictPlugin()) # 添加自己的plugin
-        super(MyInventory, self).__init__(self.loader, sources)
+        super(MyInventory, self).__init__(self.loader, host_list)
 
+    def _setup_inventory_plugins(self):
+        self._inventory_plugins = [InventoryStringPlugin(),
+                                   InventoryListPlugin(),
+                                   InventoryDictPlugin()]
+
+    def parse_sources(self, cache=False):
+        """
+        覆盖父类的解析方法，因为父类的该方法要:
+            1. 遍历内容
+            2. 路径字符串处理
+        而这里的解析只需要直接解析就行.
+        """
+
+        self._setup_inventory_plugins()
+
+        parsed = self.parse_source(self._sources)
+        if parsed:
+            self._inventory.reconcile_inventory()
+
+        self._inventory_plugins = []
+
+    def parse_source(self, source):
+        parsed = False
+
+        if not self._inventory_plugins:
+            self._setup_inventory_plugins()
+
+        for plugin in self._inventory_plugins:
+            if plugin.verify_file(source):
+                try:
+                    plugin.parse(self._inventory, self._loader, source)
+                    parsed = True
+                    break
+                except:
+                    pass
+        else:
+            raise AnsibleParserError("No plugin could parse your data.")
+
+        return parsed
+
+
+class InventoryStringPlugin(BaseInventoryPlugin):
+    """
+    解析逗号间隔的主机地址
+    参考原生插件: host_list
+    """
+
+    NAME = 'host_string'
+    _load_name = NAME
+    _original_path = ""
+
+    def verify_file(self, host_string):
+        return isinstance(host_string, string_types)
+
+    def parse(self, inventory, loader, host_string, cache=None):
+        super(InventoryStringPlugin, self).parse(inventory, loader, host_string)
+        try:
+            if "," in host_string:
+                host_string = [h.strip() for h in host_string.split(',') if h and h.strip()]
+            else:
+                host_string = [ host_string]
+
+            for h in host_string:
+                if h not in self.inventory.hosts:
+                    self.inventory.add_host(h, group='ungrouped')
+        except Exception as e:
+            raise AnsibleParserError("Invalid data from string, could not parse: %s" % to_native(e))
+
+
+class InventoryListPlugin(BaseInventoryPlugin):
+    """
+    解析主机列表
+    参考原生插件: host_list
+    """
+
+    NAME = "host_list"
+    _load_name = NAME
+    _original_path = ""
+
+    def verify_file(self, host_list):
+        return isinstance(host_list, (list, set))
+
+    def parse(self, inventory, loader, host_list, cache=None):
+        super(InventoryListPlugin, self).parse(inventory, loader, host_list)
+        try:
+            for h in host_list:
+                if h not in self.inventory.hosts:
+                    self.inventory.add_host(h, group='ungrouped')
+        except Exception as e:
+            raise AnsibleParserError("Invalid data from sequnes, could not parse: %s" % to_native(e))
 
 
 class InventoryDictPlugin(BaseInventoryPlugin):
     """
-    参照仓库解析插件script做的针对字典类型的数据仓库解析插件.
+    参照原生插件: script
     Host inventory parser for ansible using Dict data. as inventory scripts.
     """
+    NAME = "host_dict"
+    _load_name = NAME
+    _original_path = ""
+
     def __init__(self):
         super(InventoryDictPlugin, self).__init__()
         self._hosts = set()
@@ -59,7 +143,7 @@ class InventoryDictPlugin(BaseInventoryPlugin):
     def parse(self, inventory, loader, sources, cache=None):
         super(InventoryDictPlugin, self).parse(inventory, loader, sources)
 
-        data_from_meta = None
+        data_from_meta = {}
 
         try:
             for group, gdata in sources.iteritems():
@@ -71,17 +155,21 @@ class InventoryDictPlugin(BaseInventoryPlugin):
 
             for host in self._hosts:
                 got = {}
-                if data_from_meta is not None:
-                    try:
-                        got = data_from_meta.get(host, {})
-                    except AttributeError as e:
-                        msg = "Improperly formatted host information for {}: {}"
-                        raise AnsibleError(msg.format(host, to_native(e)))
+                if data_from_meta:
+                    got = data_from_meta.get(host, {})
 
-                self._populate_host_vars([host], got)
+                self._set_host_vars([host], got)
 
         except Exception as e:
             raise AnsibleParserError(to_native(e))
+
+    def _set_host_vars(self, *args, **kwargs):
+        if hasattr(self, "populate_host_vars"):
+            self.populate_host_vars(*args, **kwargs)
+        elif hasattr(self, "_populate_host_vars"):
+            self._populate_host_vars(*args, **kwargs)
+        else:
+            raise Exception("Have no host vars set function.")
 
     def _parse_group(self, group, data):
 
@@ -124,7 +212,11 @@ if __name__ == "__main__":
             "ansible_ssh_host": "3.3.3.3",
             "3vars": "3value"
             },
-        "_meta":{"hostvars":{}}
+        "_meta":{"hostvars":
+                 {"1.1.1.1":{"var1": "value1"},
+                  "2.2.2.2":{"h2":"v2"},
+                  "3.3.3.3":{"h3":"v3"},
+                  }}
     }
 
     host_list1 = "1.1.1.1"
@@ -145,8 +237,11 @@ if __name__ == "__main__":
         print "group1:", myhosts.list_hosts("group1")
         print "group2:", myhosts.list_hosts("group2")
 
-        print "group1 vars:", myhosts.get_group_vars(myhosts.groups["group1"])
         print myhosts.groups["group1"].vars
 
-        print "group2 vars:", myhosts.get_group_vars(myhosts.groups["group2"])
         print myhosts.groups["group2"].vars
+
+        print myhosts.groups["3.3.3.3"].vars
+        print myhosts.hosts["1.1.1.1"].vars
+        print myhosts.hosts["2.2.2.2"].vars
+        print myhosts.hosts["3.3.3.3"].vars
